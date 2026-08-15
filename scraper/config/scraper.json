@@ -1,0 +1,5 @@
+{
+  "apiBase": "https://mediere.anofm.ro",
+  "apiListPath": "/api/entity/vw_public_job_posting",
+  "defaultLocation": "București"
+}

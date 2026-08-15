@@ -9,7 +9,7 @@
  * SCOPE: Generic — works with ANY CIF, single URL, or list from file.
  * Used for ad-hoc cleanup and debugging. NOT called from CI.
  *
- * For the fast CI-friendly HEAD check, see
+ * For the fast CI-friendly GUSTURI DIVINE HEAD check, see
  * tests/validate-gusturi-divine-jobs.js.
  *
  * Usage:
@@ -20,7 +20,7 @@
  */
 
 import fs from "fs";
-import { validateByContent } from "./src/job-validator.js";
+import { validateByContent } from "./job-validator.js";
 
 async function checkUrls(urls) {
   console.log(`=== Validating ${urls.length} URLs ===\n`);
@@ -61,7 +61,7 @@ async function checkUrls(urls) {
 async function validateJobs(cif) {
   console.log("=== Validate Job URLs from Solr ===\n");
   
-  const { querySOLR } = await import("./solr.js");
+  const { querySOLR } = await import("./api.js");
   const result = await querySOLR(cif);
   const urls = result.docs.map(doc => doc.url);
   
@@ -90,7 +90,7 @@ async function loadUrlsFromFile(filePath) {
 }
 
 async function deleteExpiredJobs(expiredJobs) {
-  const { deleteJobByUrl } = await import("./solr.js");
+  const { deleteJobByUrl } = await import("./api.js");
   
   console.log(`\nDeleting ${expiredJobs.length} expired jobs from SOLR...`);
   
@@ -136,7 +136,7 @@ Usage:
 
 Examples:
   node validate-jobs.js 47473595                 - Validate GUSTURI DIVINE jobs
-  node validate-jobs.js --url "https://www.anofm.ro/job/123_test"
+  node validate-jobs.js --url "https://mediere.anofm.ro/app/module/mediere/job/123"
   node validate-jobs.js --urls "url1" "url2" "url3"
   node validate-jobs.js --file jobs.json
 `;

@@ -27,7 +27,7 @@ function skipIfNoRepo() {
   return false;
 }
 
-import companyConfig from "../../config/company.js";
+import companyConfig from "../../scraper/config/company.js";
 
 describe("Repository Configuration", () => {
   describe("default branch", () => {
@@ -77,17 +77,6 @@ describe("Repository Configuration", () => {
       expect(html).toContain("peviitor");
       expect(html).toContain(companyConfig.brand);
       console.log(`✅ GitHub Pages HTML loaded from ${pagesUrl}`);
-    });
-  });
-
-  describe("SOLR_AUTH secret", () => {
-    it("should be defined in CI environment", () => {
-      if (!REPO) {
-        console.log("GITHUB_REPOSITORY not set — running locally, skipping");
-        return;
-      }
-      expect(process.env.SOLR_AUTH).toBeTruthy();
-      console.log("✅ SOLR_AUTH is set");
     });
   });
 

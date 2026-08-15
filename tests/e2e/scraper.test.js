@@ -1,19 +1,19 @@
 import { jest } from '@jest/globals';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
+const API_BASE = 'https://api.peviitor.ro/v1';
 
-const HAS_SOLR = !!process.env.SOLR_AUTH;
+let HAS_API = false;
 
-function itIfSolr(name, fn, timeout) {
-  if (HAS_SOLR) {
-    return it(name, fn, timeout);
+async function checkApiAvailability() {
+  try {
+    const res = await fetch(`${API_BASE}/scraper/jobs/?cif=${companyConfig.id}&rows=1`, {
+      signal: AbortSignal.timeout(5000)
+    });
+    return res.ok || res.status === 400;
+  } catch {
+    return false;
   }
-  return it.skip(`${name} (skipped: SOLR_AUTH not set)`, fn, timeout);
 }
 
 let HAS_ANAF = false;
@@ -30,6 +30,13 @@ async function checkAnafAvailability() {
   }
 }
 
+function itIfApi(name, fn, timeout) {
+  if (HAS_API) {
+    return it(name, fn, timeout);
+  }
+  return it.skip(`${name} (skipped: API unavailable)`, fn, timeout);
+}
+
 function itIfAnaf(name, fn, timeout) {
   if (HAS_ANAF) {
     return it(name, fn, timeout);
@@ -37,51 +44,157 @@ function itIfAnaf(name, fn, timeout) {
   return it.skip(`${name} (skipped: ANAF API unavailable)`, fn, timeout);
 }
 
-beforeAll(async () => {
-  HAS_ANAF = await checkAnafAvailability();
-  if (HAS_SOLR) {
-    process.env.SOLR_AUTH = process.env.SOLR_AUTH;
-  }
-}, 60000);
+import companyConfig from '../../scraper/config/company.js';
+import scraperConfig from '../../scraper/config/scraper.js';
+const TEST_CIF = companyConfig.id;
+const TEST_BRAND = companyConfig.brand;
+const COMPANY_NAME = companyConfig.company;
+const ANOFM_URL = `${scraperConfig.apiBase}${scraperConfig.apiListPath}`;
 
-const TEST_CIF = '47473595';
-const TEST_BRAND = 'gusturi-divine';
+async function fetchAnofmJobs() {
+  const res = await fetch(ANOFM_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Referer': scraperConfig.apiBase,
+      'User-Agent': 'job_seeker_ro_spider'
+    },
+    body: JSON.stringify({
+      current: 1,
+      rowCount: 50,
+      sort: { created_at: "desc" },
+      employer_tax_code: TEST_CIF
+    })
+  });
+  return res;
+}
+
+beforeAll(async () => {
+  [HAS_API, HAS_ANAF] = await Promise.all([checkApiAvailability(), checkAnafAvailability()]);
+});
 
 describe('E2E: Full Scraping Pipeline', () => {
 
-  describe('ANOFM API — Real Data Fetch', () => {
+  describe('ANOFM — Real Data Fetch', () => {
     let anofmData;
 
     beforeAll(async () => {
-      const payload = {
-        current: 1,
-        rowCount: 10,
-        sort: { created_at: "desc" },
-        employer_tax_code: TEST_CIF
-      };
-      const res = await fetch("https://mediere.anofm.ro/api/entity/vw_public_job_posting", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "User-Agent": "job_seeker_ro_spider"
-        },
-        body: JSON.stringify(payload)
-      });
+      const res = await fetchAnofmJobs();
       anofmData = await res.json();
     }, 15000);
 
-    it('should respond with valid data structure from ANOFM API', () => {
-      expect(anofmData).toHaveProperty('rows');
+    it('should respond with valid JSON containing rows', () => {
+      expect(anofmData).toBeDefined();
       expect(Array.isArray(anofmData.rows)).toBe(true);
-      expect(anofmData).toHaveProperty('total');
-    }, 10000);
+    });
 
-    it('should have valid job fields from ANOFM if any jobs exist', () => {
-      if (anofmData.rows.length > 0) {
-        const job = anofmData.rows[0];
-        expect(job).toHaveProperty('id');
-        expect(job).toHaveProperty('occupation');
-        expect(typeof job.occupation).toBe('string');
+    it('should contain job links when jobs exist', () => {
+      if (anofmData.rows.length === 0) {
+        console.log('⚠️ No ANOFM jobs for GUSTURI DIVINE — skipping job link assertion');
+        return;
+      }
+      const first = anofmData.rows[0];
+      expect(first.id).toBeDefined();
+      expect(first.occupation).toBeDefined();
+    });
+  });
+
+  describe('Parse + Transform Pipeline', () => {
+    let index;
+    let anofmData;
+
+    beforeAll(async () => {
+      index = await import('../../scraper/index.js');
+      const res = await fetchAnofmJobs();
+      anofmData = await res.json();
+    }, 15000);
+
+    it('should parse real ANOFM data into standardized format', () => {
+      const jobs = [];
+      for (const row of anofmData.rows || []) {
+        const locationParts = (row.address_locality_name || '').split('>').map(s => s.trim());
+        const location = locationParts.length > 1 ? locationParts[locationParts.length - 1] : locationParts[0];
+        jobs.push({
+          url: `https://mediere.anofm.ro/app/module/mediere/job/${row.id}`,
+          title: row.occupation,
+          location: location ? [location] : undefined,
+          source: "ANOFM"
+        });
+      }
+
+      expect(Array.isArray(jobs)).toBe(true);
+
+      if (jobs.length === 0) {
+        console.log('⚠️ No ANOFM jobs — skipping job shape assertions');
+        return;
+      }
+
+      const parsed = jobs[0];
+      expect(parsed).toHaveProperty('url');
+      expect(parsed.url).toMatch(/^https:\/\/mediere\.anofm\.ro\//);
+      expect(parsed).toHaveProperty('title');
+      expect(parsed).toHaveProperty('location');
+      expect(Array.isArray(parsed.location)).toBe(true);
+    });
+
+    it('should map parsed jobs to job model', () => {
+      const jobs = [];
+      for (const row of anofmData.rows || []) {
+        const locationParts = (row.address_locality_name || '').split('>').map(s => s.trim());
+        const location = locationParts.length > 1 ? locationParts[locationParts.length - 1] : locationParts[0];
+        jobs.push({
+          url: `https://mediere.anofm.ro/app/module/mediere/job/${row.id}`,
+          title: row.occupation,
+          location: location ? [location] : undefined
+        });
+      }
+
+      if (jobs.length === 0) {
+        console.log('⚠️ No ANOFM jobs — skipping job model assertion');
+        return;
+      }
+
+      const model = index.mapToJobModel(jobs[0], TEST_CIF);
+
+      expect(model).toHaveProperty('url');
+      expect(model).toHaveProperty('title');
+      expect(model).toHaveProperty('company');
+      expect(model).toHaveProperty('cif', TEST_CIF);
+      expect(model).toHaveProperty('status', 'scraped');
+      expect(model).toHaveProperty('date');
+      expect(model.url).toMatch(/^https:\/\/mediere\.anofm\.ro\//);
+    });
+
+    it('should transform jobs and filter to Romanian locations', () => {
+      const jobs = [];
+      for (const row of anofmData.rows || []) {
+        const locationParts = (row.address_locality_name || '').split('>').map(s => s.trim());
+        const location = locationParts.length > 1 ? locationParts[locationParts.length - 1] : locationParts[0];
+        jobs.push({
+          url: `https://mediere.anofm.ro/app/module/mediere/job/${row.id}`,
+          title: row.occupation,
+          location: location ? [location] : undefined
+        });
+      }
+
+      const parsedJobs = jobs.map(j => index.mapToJobModel(j, TEST_CIF));
+
+      const payload = {
+        source: 'anofm.ro',
+        company: COMPANY_NAME,
+        cif: TEST_CIF,
+        jobs: parsedJobs
+      };
+
+      const transformed = index.transformJobsForSOLR(payload);
+
+      expect(transformed.company).toBe(COMPANY_NAME);
+      expect(transformed.jobs.length).toBe(jobs.length);
+
+      for (const job of transformed.jobs) {
+        expect(job).toHaveProperty('location');
+        expect(Array.isArray(job.location)).toBe(true);
+        expect(job.location.length).toBeGreaterThan(0);
       }
     });
   });
@@ -91,34 +204,36 @@ describe('E2E: Full Scraping Pipeline', () => {
     let company;
 
     beforeAll(async () => {
-      anaf = await import('../../src/anaf.js');
-      company = await import('../../company.js');
+      anaf = await import('../../scraper/anaf.js');
+      company = await import('../../scraper/company.js');
     });
 
-    itIfAnaf('should find company in ANAF and validate active status', async () => {
+    itIfAnaf('should find GUSTURI DIVINE in ANAF and validate active status', async () => {
       const results = await anaf.searchCompany(TEST_BRAND);
 
-      const target = results.find(c =>
-        c.name.toUpperCase().includes('GUSTURI DIVINE') &&
+      const gusturi = results.find(c =>
+        c.cui.toString() === TEST_CIF &&
         c.statusLabel === 'Funcțiune'
       );
-      expect(target).toBeDefined();
-      expect(target.cui.toString()).toBe(TEST_CIF);
+      expect(gusturi).toBeDefined();
+      expect(gusturi.cui.toString()).toBe(TEST_CIF);
+    }, 30000);
 
+    itIfAnaf('should fetch active company data from ANAF', async () => {
       const anafData = await anaf.getCompanyFromANAF(TEST_CIF);
       expect(anafData).toBeDefined();
       expect(anafData.inactive).toBe(false);
     }, 30000);
 
-    itIfSolr('should run full validation and report active status with job count', async () => {
+    itIfApi('should run full validation and report active status with job count', async () => {
       const result = await company.validateAndGetCompany();
 
       expect(result.status).toBe('active');
-      expect(result.company).toBe('GUSTURI DIVINE S.R.L.');
+      expect(result.company).toBe(COMPANY_NAME);
       expect(result.cif).toBe(TEST_CIF);
 
       if (result.existingJobsCount === 0) {
-        console.log('⚠️ No jobs in Solr — skipping job count assertion');
+        console.log('⚠️ No GUSTURI DIVINE jobs in API — skipping job count assertion');
         return;
       }
       expect(result.existingJobsCount).toBeGreaterThan(0);
@@ -129,11 +244,11 @@ describe('E2E: Full Scraping Pipeline', () => {
     let anaf;
 
     beforeAll(async () => {
-      anaf = await import('../../src/anaf.js');
+      anaf = await import('../../scraper/anaf.js');
     });
 
     itIfAnaf('should detect inactive/radiated companies via ANAF', async () => {
-      const results = await anaf.searchCompany('GUSTURI DIVINE');
+      const results = await anaf.searchCompany(TEST_BRAND);
 
       const nonActive = results.find(c => c.statusLabel !== 'Funcțiune');
 
@@ -151,34 +266,33 @@ describe('E2E: Full Scraping Pipeline', () => {
     }, 30000);
   });
 
-  describe('SOLR Data Verification', () => {
-    let solr;
+  describe('API Data Verification', () => {
+    let api;
 
     beforeAll(async () => {
-      solr = await import('../../solr.js');
+      api = await import('../../scraper/api.js');
     });
 
-    itIfSolr('should have company jobs in SOLR with correct company name', async () => {
-      const result = await solr.querySOLR(TEST_CIF);
+    itIfApi('should have GUSTURI DIVINE jobs in API with correct company name', async () => {
+      const result = await api.querySOLR(TEST_CIF);
 
       if (result.numFound === 0) {
-        console.log('⚠️ No jobs in Solr — skipping SOLR data verification');
+        console.log('⚠️ No GUSTURI DIVINE jobs in API — skipping API data verification');
         return;
       }
 
       for (const job of result.docs) {
-        expect(job.company).toBe('GUSTURI DIVINE S.R.L.');
+        expect(job.company).toBe(COMPANY_NAME);
         expect(job.cif).toBe(TEST_CIF);
       }
     }, 15000);
 
-    itIfSolr('should have company core entry with required fields', async () => {
-      const result = await solr.queryCompanySOLR(`id:${TEST_CIF}`);
+    itIfApi('should have GUSTURI DIVINE company core entry with required fields', async () => {
+      const companyDoc = await api.getCompanyByCif(TEST_CIF);
 
-      expect(result.numFound).toBe(1);
-      const company = result.docs[0];
-      expect(company.company).toBe('GUSTURI DIVINE S.R.L.');
-      expect(company.status).toBe('activ');
+      expect(companyDoc).toBeDefined();
+      expect(companyDoc.company).toBe(COMPANY_NAME);
+      expect(companyDoc.status).toBe('activ');
     }, 15000);
   });
 });

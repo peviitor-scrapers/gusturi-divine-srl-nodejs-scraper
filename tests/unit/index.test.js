@@ -4,7 +4,7 @@ describe('index.js Component Tests', () => {
   let index;
 
   beforeAll(async () => {
-    index = await import('../../index.js');
+    index = await import('../../scraper/index.js');
   });
 
   describe('transformJobsForSOLR', () => {
@@ -113,6 +113,22 @@ describe('index.js Component Tests', () => {
 
       expect(result.title).toBeUndefined();
       expect(result.url).toBe('https://test.com/1');
+    });
+  });
+
+  describe('searchANOFM', () => {
+    it('should return empty array when ANOFM returns non-OK', async () => {
+      global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 });
+      const jobs = await index.searchANOFM('47473595');
+      expect(Array.isArray(jobs)).toBe(true);
+      expect(jobs.length).toBe(0);
+    });
+
+    it('should return empty array on network error', async () => {
+      global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+      const jobs = await index.searchANOFM('47473595');
+      expect(Array.isArray(jobs)).toBe(true);
+      expect(jobs.length).toBe(0);
     });
   });
 });

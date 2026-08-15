@@ -1,21 +1,23 @@
 # job_seeker_ro_spider — GUSTURI DIVINE S.R.L. Scraper
 
-[![Oportunitati SI Cariere](https://github.com/sebiboga/gusturi-divine-srl-nodejs-scraper/actions/workflows/job-seeker-ro-spider.yml/badge.svg)](https://github.com/sebiboga/gusturi-divine-srl-nodejs-scraper/actions/workflows/job-seeker-ro-spider.yml)
-[![Automation Tests](https://github.com/sebiboga/gusturi-divine-srl-nodejs-scraper/actions/workflows/automation-testing.yml/badge.svg)](https://github.com/sebiboga/gusturi-divine-srl-nodejs-scraper/actions/workflows/automation-testing.yml)
+[![Oportunitati SI Cariere](https://github.com/peviitor-scrapers/gusturi-divine-srl-nodejs-scraper/actions/workflows/job-seeker-ro-spider.yml/badge.svg)](https://github.com/peviitor-scrapers/gusturi-divine-srl-nodejs-scraper/actions/workflows/job-seeker-ro-spider.yml)
+[![Automation Tests](https://github.com/peviitor-scrapers/gusturi-divine-srl-nodejs-scraper/actions/workflows/automation-testing.yml/badge.svg)](https://github.com/peviitor-scrapers/gusturi-divine-srl-nodejs-scraper/actions/workflows/automation-testing.yml)
 
-[![Version](https://img.shields.io/github/package-json/v/sebiboga/gusturi-divine-srl-nodejs-scraper?label=version&color=blue)](CHANGELOG.md)
-[![Test Results](https://img.shields.io/badge/test--results-HTML-9b59b6)](https://sebiboga.github.io/gusturi-divine-srl-nodejs-scraper/test-results/)
+[![Version](https://img.shields.io/github/package-json/v/peviitor-scrapers/gusturi-divine-srl-nodejs-scraper?label=version&color=blue)](CHANGELOG.md)
+[![Test Results](https://img.shields.io/badge/test--results-HTML-9b59b6)](https://peviitor-scrapers.github.io/gusturi-divine-srl-nodejs-scraper/test-results/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![JavaScript](https://img.shields.io/badge/javascript-ESM-F7DF1E?logo=javascript&logoColor=black)](https://ecma-international.org/)
 [![Node.js](https://img.shields.io/badge/node-24-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Website](https://img.shields.io/website?url=https%3A%2F%2Fpeviitor.ro&label=peviitor.ro)](https://peviitor.ro)
 [![API](https://img.shields.io/website?url=https%3A%2F%2Fapi.peviitor.ro%2F&label=api.peviitor.ro)](https://api.peviitor.ro/)
 [![SOLR](https://img.shields.io/website?url=https%3A%2F%2Fsolr.peviitor.ro%2Fsolr%2F&label=solr.peviitor.ro)](https://solr.peviitor.ro/solr/)
-[![GitHub Pages](https://img.shields.io/github/deployments/sebiboga/gusturi-divine-srl-nodejs-scraper/github-pages?label=GitHub%20Pages)](https://sebiboga.github.io/gusturi-divine-srl-nodejs-scraper/)
+[![GitHub Pages](https://img.shields.io/github/deployments/peviitor-scrapers/gusturi-divine-srl-nodejs-scraper/github-pages?label=GitHub%20Pages)](https://peviitor-scrapers.github.io/gusturi-divine-srl-nodejs-scraper/)
 
-**job_seeker_ro_spider** — un scraper pentru job-urile GUSTURI DIVINE S.R.L. din România. Extrage anunțurile de pe [ANOFM](https://www.anofm.ro) și le publică în [peviitor.ro](https://peviitor.ro) prin API-ul SOLR.
+**job_seeker_ro_spider** — un scraper pentru job-urile GUSTURI DIVINE S.R.L. din România. Extrage anunțurile de pe [ANOFM](https://www.anofm.ro) (API public filtrat pe CIF) și le publică în [peviitor.ro](https://peviitor.ro) prin API-ul Peviitor.
 
-> **Derivat din:** [EPAM Systems International SRL Node.js Scraper](https://github.com/sebiboga/epam-systems-international-srl-nodejs-scraper) — șablonul de referință pentru scraper-ele Node.js din ecosistemul peviitor.ro.
+> **🌱 Derived scraper.** Acest repo a fost derivat din [EPAM template](https://github.com/sebiboga/epam-systems-international-srl-nodejs-scraper). Identitatea companiei trăiește în `scraper/config/company.json`.
+>
+> Derivat din: `sebiboga/epam-systems-international-srl-nodejs-scraper`
 
 ## Overview
 
@@ -23,38 +25,83 @@ Proiectul automatizează colectarea zilnică a job-urilor GUSTURI DIVINE S.R.L. 
 
 ## Features
 
-- **ANOFM API**: Queries job listings by company CIF
-- **ANAF Validation**: Validates company existence and status before scraping
-- **SOLR Storage**: Stores job data for peviitor.ro
-- **Automated CI**: Daily scheduled scraping via GitHub Actions
-- **Multi-layer tests**: Unit, integration, E2E, consistency
+- Extrage job-uri din ANOFM API (`https://mediere.anofm.ro/api/entity/vw_public_job_posting`) — public, filtrat pe CIF
+- Validează compania via ANAF (CIF, status activ/inactiv, adresă completă)
+- **Cache ANAF la 7 zile** — committed în repo, nu lovește demoANAF la fiecare scrape
+- **Fallback la cache stale** dacă ANAF e indisponibil
+- Stochează prin Peviitor API (job core + company core)
+- Generează `docs/jobs.md` automat — accesibil pe GitHub Pages
+- **Identitate companie într-un singur fișier** (`scraper/config/company.json`)
+- GitHub Actions: scrape zilnic + testare automată (unit, integration, e2e, consistency)
+- Fără `SOLR_AUTH` — toate operațiile merg prin Peviitor API (public)
+- Se identifică prin User-Agent: `job_seeker_ro_spider`
 
-## Quick Start
+## Project Structure
 
-```bash
-# Install dependencies
-npm install
-
-# Run the scraper (test mode — single page)
-npm run scrape -- --test
-
-# Run all tests
-npm test
+```
+├── scraper/
+│   ├── index.js                    # Main scraper entry point
+│   ├── company.js                  # Company validation via ANAF + Peviitor
+│   ├── anaf.js                     # ANAF API core module
+│   ├── api.js                      # Peviitor API (query, upsert, delete)
+│   ├── markdown-generator.js       # Generates docs/jobs.md
+│   ├── job-validator.js            # Shared job validation
+│   ├── validate-jobs.js            # Deep validator CLI
+│   ├── demoanaf.js                 # ANAF CLI
+│   └── config/
+│       ├── company.json            # Single source of truth: id, brand, URLs
+│       ├── company.js              # ESM loader for company.json
+│       ├── scraper.json            # ANOFM apiBase + list path
+│       └── scraper.js              # ESM loader for scraper.json
+├── company.json                    # ANAF data cache (committed, 7-day TTL)
+├── ai/                             # Project documentation
+├── tests/
+│   ├── unit/                       # Unit tests (mapToJobModel, transformJobsForSOLR, searchANOFM)
+│   ├── integration/                # Integration tests (ANAF + Peviitor live)
+│   ├── e2e/                        # E2E tests (real ANOFM data)
+│   └── consistency/                # Repo configuration tests
+├── docs/
+│   ├── index.html              # Live job board (GitHub Pages)
+│   └── jobs.md                 # Scraped jobs in markdown (generated by CI)
+└── .github/
+    └── workflows/
+        ├── job-seeker-ro-spider.yml     # Daily scraping at 6 AM UTC
+        ├── automation-testing.yml       # Tests on push/PR
+        └── job-recovery-from-disaster.yml  # Company core recovery
 ```
 
-## How It Works
+## Setup
 
-```mermaid
-flowchart TD
-    A[GitHub Actions: Daily 6 AM] --> B[ANAF Company Validation]
-    B --> C{Company Active?}
-    C -->|Yes| D[Scrape ANOFM API by CIF]
-    C -->|No| E[Delete jobs from SOLR]
-    D --> F[Transform to Job Model]
-    F --> G[Upsert to SOLR]
-    G --> H[Generate docs/jobs.md]
-    H --> I[Run Tests]
-    I --> J[Push results to docs/]
+### Prerequisites
+
+- Node.js 24+
+- npm
+
+### Installation
+
+```bash
+npm install
+```
+
+### Configuration
+
+Nu e necesară nicio variabilă de mediu — toate operațiile merg prin Peviitor API (public, fără autentificare).
+
+## Usage
+
+### Run the Scraper
+
+```bash
+npm run scrape
+```
+
+### Run Tests
+
+```bash
+npm test           # All tests
+npm run test:unit  # Unit tests only
+npm run test:integration  # Integration tests
+npm run test:e2e   # E2E tests
 ```
 
 ## ANOFM API
@@ -75,45 +122,32 @@ With payload:
 }
 ```
 
-## Project Structure
+## Workflows
 
-```
-├── index.js                 # Main scraper entry point
-├── company.js               # Company validation (ANAF)
-├── solr.js                  # SOLR database operations
-├── config/
-│   └── company.json         # Single source of truth for company identity
-├── src/
-│   ├── anaf.js              # ANAF API client
-│   ├── markdown-generator.js # Job markdown generator
-│   └── job-validator.js     # URL validation
-├── tests/
-│   ├── unit/                # Unit tests
-│   ├── integration/         # Integration tests
-│   ├── e2e/                 # End-to-end tests
-│   └── consistency/         # Repository consistency tests
-├── docs/
-│   ├── index.html           # GitHub Pages job board
-│   ├── company.json         # Company config for HTML page
-│   └── jobs.md              # Generated job listings
-└── .github/workflows/
-    ├── job-seeker-ro-spider.yml     # Main scraping workflow
-    └── automation-testing.yml       # Test automation workflow
-```
+### Daily Scraping
 
-## Testing
+The `job-seeker-ro-spider.yml` workflow runs daily at 6 AM UTC via GitHub Actions.
 
-```bash
-# Run all tests
-npm test
+### Test Automation
 
-# Test categories:
-npm run test:unit          # Unit tests (fast, no external deps)
-npm run test:integration   # Integration tests (ANAF/SOLR)
-npm run test:e2e           # E2E tests (full pipeline)
-npm run test:consistency   # Repository consistency checks
-```
+The `automation-testing.yml` workflow runs on every push and pull request.
+
+## Derivation
+
+This scraper was derived from the [EPAM template](https://github.com/sebiboga/epam-systems-international-srl-nodejs-scraper) using the autonomous derivation algorithm documented in [ALGORITHM.md](https://github.com/sebiboga/AI-Factory-job-seeker-ro-spider/blob/main/ALGORITHM.md).
+
+## Acknowledgments
+
+Developed with the assistance of AI agents executing the derivation algorithm from the EPAM template.
+
+Special thanks to the open source community and the peviitor.ro team.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Copyright (c) 2024-2026 BOGA SEBASTIAN-NICOLAE
+
+Licensed under the [MIT License](LICENSE).
+
+## Managed By
+
+This project is managed by [ASOCIATIA OPORTUNITATI SI CARIERE](https://oportunitatisicariere.ro) and used as a web scraper for the [peviitor.ro](https://peviitor.ro) job board project.

@@ -42,37 +42,35 @@ function peviitorResponse(companies) {
   };
 }
 
-function solrResponse(numFound, docs) {
+function solrResponse(total, data) {
   return {
     ok: true,
-    json: async () => ({ response: { numFound, docs } })
+    json: async () => ({ total, data })
   };
 }
 
-const GUSTURI_DIVINE_ANAF_RECORD = {
+const GUSTURI_ANAF_RECORD = {
   cui: 47473595,
   name: 'GUSTURI DIVINE S.R.L.',
-  address: 'UNIRII, 313, Bucureşti Sectorul 3, Bucureşti',
-  caenCode: '1013',
+  address: 'JUD. CLUJ, MUN. CLUJ-NAPOCA, STR. TĂIETURA TURCULUI, NR.24, ET.5, AP.503B',
+  caenCode: '6210',
   inactive: false,
   vatRegistered: true,
   eFacturaRegistered: false,
-  headquartersAddress: { locality: 'Bucureşti Sectorul 3' }
+  headquartersAddress: { locality: 'Cluj-Napoca' }
 };
 
 describe('company.js', () => {
   let company;
 
   beforeAll(async () => {
-    process.env.SOLR_AUTH = 'test:test';
     fs.mkdirSync("tmp", { recursive: true });
     backupFile(COMPANY_JSON_PATH);
     backupFile(ROOT_COMPANY_JSON_PATH);
-    company = await import('../../company.js');
+    company = await import('../../scraper/company.js');
   });
 
   afterAll(() => {
-    delete process.env.SOLR_AUTH;
     restoreFile(COMPANY_JSON_PATH);
     restoreFile(ROOT_COMPANY_JSON_PATH);
   });
@@ -83,8 +81,8 @@ describe('company.js', () => {
   });
 
   describe('getCompanyData (no cache)', () => {
-    it('should fetch company via direct CIF lookup and return company data', async () => {
-      mockFetch.mockResolvedValueOnce(anafCompanyResponse(GUSTURI_DIVINE_ANAF_RECORD));
+    it('should fetch GUSTURI via direct CIF lookup and return company data', async () => {
+      mockFetch.mockResolvedValueOnce(anafCompanyResponse(GUSTURI_ANAF_RECORD));
 
       const result = await company.getCompanyData();
 
@@ -111,7 +109,7 @@ describe('company.js', () => {
   describe('getCompanyData (with cache)', () => {
     const cachedData = {
       validatedAt: new Date().toISOString(),
-      anaf: GUSTURI_DIVINE_ANAF_RECORD,
+      anaf: GUSTURI_ANAF_RECORD,
       summary: {
         company: 'GUSTURI DIVINE S.R.L.',
         cif: '47473595',
@@ -140,7 +138,7 @@ describe('company.js', () => {
 
     it('should return company data with status active', async () => {
       mockFetch
-        .mockResolvedValueOnce(anafCompanyResponse(GUSTURI_DIVINE_ANAF_RECORD))
+        .mockResolvedValueOnce(anafCompanyResponse(GUSTURI_ANAF_RECORD))
         .mockResolvedValueOnce(solrResponse(5, [
           { url: 'https://test.com/1', title: 'Job 1' },
           { url: 'https://test.com/2', title: 'Job 2' }
@@ -156,9 +154,10 @@ describe('company.js', () => {
       expect(typeof result.existingJobsCount).toBe('number');
     });
 
-    if (GUSTURI_DIVINE_ANAF_RECORD.inactive) {
+    // GUSTURI e activă — testul inactive se rulează doar dacă firma e inactivă
+    if (GUSTURI_ANAF_RECORD.inactive) {
       it('should return inactive status when company is inactive', async () => {
-        const inactiveRecord = { ...GUSTURI_DIVINE_ANAF_RECORD, inactive: true };
+        const inactiveRecord = { ...GUSTURI_ANAF_RECORD, inactive: true };
 
         mockFetch
           .mockResolvedValueOnce(anafCompanyResponse(inactiveRecord))

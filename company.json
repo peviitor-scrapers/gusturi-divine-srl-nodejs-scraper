@@ -1,5 +1,5 @@
 {
-  "validatedAt": "2026-07-09T06:38:23.914Z",
+  "validatedAt": "2026-08-15T02:25:55.147Z",
   "source": "ANAF",
   "brand": "gusturi-divine",
   "anaf": {
@@ -80,11 +80,6 @@
     "cif": "47473595",
     "active": true,
     "inactiveSince": null,
-    "reactivatedSince": null,
-    "address": "UNIRII, 313, Bucureşti Sectorul 3, Bucureşti",
-    "registrationNumber": "J2023000868407",
-    "caenCode": "1013",
-    "vatRegistered": true,
-    "eFacturaRegistered": false
+    "address": "UNIRII, 313, Bucureşti Sectorul 3, Bucureşti"
   }
 }

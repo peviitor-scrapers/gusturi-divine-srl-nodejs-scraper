@@ -6,7 +6,7 @@ Thank you for your interest in contributing!
 
 This repo is a **derived scraper** — it was generated from the [EPAM Systems International SRL Node.js Scraper](https://github.com/sebiboga/epam-systems-international-srl-nodejs-scraper) template.
 
-This scraper scrapes job listings for **GUSTURI DIVINE S.R.L.** from ANOFM (Agentia Nationala pentru Ocuparea Fortei de Munca) and publishes them to peviitor.ro via the SOLR API.
+This scraper scrapes job listings for **GUSTURI DIVINE S.R.L.** from ANOFM (Agentia Nationala pentru Ocuparea Fortei de Munca) and publishes them to peviitor.ro via the Peviitor API.
 
 ## How to contribute
 
@@ -20,4 +20,4 @@ This scraper scrapes job listings for **GUSTURI DIVINE S.R.L.** from ANOFM (Agen
 
 - ES modules (import/export)
 - Jest for testing
-- No hardcoded company identity — all configuration lives in `config/company.json`
+- No hardcoded company identity — all configuration lives in `scraper/config/company.json`
